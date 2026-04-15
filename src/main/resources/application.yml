@@ -1,0 +1,81 @@
+spring:
+  application:
+    name: movie-info-service
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/movieinfo?useUnicode=true&characterEncoding=UTF-8}
+    username: ${SPRING_DATASOURCE_USERNAME:movieinfo}
+    password: ${SPRING_DATASOURCE_PASSWORD:movieinfo}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+  cache:
+    type: redis
+
+management:
+  endpoints:
+    web:
+      # circuitbreakers / retries endpoints would leak internal dependency names/state publicly.
+      # Their data is still available via `/actuator/metrics/resilience4j.*` for monitoring tools.
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+  health:
+    circuitbreakers:
+      enabled: true
+
+logging:
+  level:
+    com.kov: INFO
+    io.github.resilience4j: INFO
+  pattern:
+    # "%5p" pads level column; "%15.15t" truncates thread name; "%-40.40logger{39}" for readable logger names
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%15.15t] %-40.40logger{39} : %m%n"
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+
+app:
+  http:
+    connect-timeout: 5s
+    read-timeout: 10s
+  cache:
+    ttl: 10m
+  async:
+    search-log:
+      core-pool-size: 4
+      max-pool-size: 8
+      # Big queue so the CallerRunsPolicy fallback in AsyncConfig is pathological, not routine.
+      # 2000 * ~128 B = ~256 KiB peak memory — cheap compared to a blocked request.
+      queue-capacity: 2000
+      thread-name-prefix: search-log-
+
+api:
+  omdb:
+    key: ${OMDB_API_KEY:}
+    url: http://www.omdbapi.com
+    max-detail-requests: 10
+  tmdb:
+    bearer-token: ${TMDB_BEARER_TOKEN:}
+    url: https://api.themoviedb.org/3
+    include-adult: true
+    max-detail-requests: 10
+
+# Resilience4j retry + circuit breaker are configured programmatically in ResilienceConfig.
+# Default aspect order is CircuitBreaker(outer) -> Retry(inner), meaning:
+#   * each CB observation is one full retry sequence (not one observation per attempt)
+#   * retries only fire for exceptions the breaker has not opened against

@@ -1,0 +1,101 @@
+openapi: 3.1.0
+info:
+  title: Movie Info Service API
+  description: |
+    Aggregates movie metadata from OMDB and TMDB public APIs with Redis caching and MySQL-backed search auditing. Responses are cached per (api, title) for 10 minutes; partial upstream failures bypass the cache.
+  version: 1.0.0
+servers:
+- url: http://localhost
+  description: Generated server url
+tags:
+- name: Movies
+  description: Search movie metadata across aggregated upstream APIs
+paths:
+  /movies/{movieTitle}:
+    get:
+      tags:
+      - Movies
+      summary: Search movies by title
+      description: |
+        Returns matching movies (title, year, directors) from the selected upstream provider. Results for a given (api, title) pair are cached in Redis for 10 minutes; partial upstream failures skip the cache so the next request can recover. Every request (including cache hits) is persisted asynchronously to the search audit log.
+      operationId: searchMovies
+      parameters:
+      - name: movieTitle
+        in: path
+        description: Movie title to search for
+        required: true
+        schema:
+          type: string
+          maxLength: 200
+          minLength: 0
+        example: Avengers
+      - name: api
+        in: query
+        description: Upstream provider to query
+        required: true
+        schema:
+          type: string
+          enum:
+          - omdb
+          - tmdb
+        example: omdb
+      responses:
+        "200":
+          description: Search completed
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MovieResponse"
+        "400":
+          description: "Invalid API name, missing api parameter, or title too long"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Upstream movie API is unavailable after retries
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Circuit breaker open — upstream temporarily suspended
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected error
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  schemas:
+    MovieDto:
+      type: object
+      properties:
+        Title:
+          type: string
+        Year:
+          type: string
+        Director:
+          type: array
+          items:
+            type: string
+    MovieResponse:
+      type: object
+      properties:
+        movies:
+          type: array
+          items:
+            $ref: "#/components/schemas/MovieDto"
+        warnings:
+          type: array
+          items:
+            type: string
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string

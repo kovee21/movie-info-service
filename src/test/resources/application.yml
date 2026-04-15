@@ -1,0 +1,39 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+  flyway:
+    enabled: false
+  cache:
+    type: simple
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration
+
+app:
+  http:
+    connect-timeout: 1s
+    read-timeout: 2s
+  cache:
+    ttl: 1m
+  async:
+    search-log:
+      core-pool-size: 2
+      max-pool-size: 4
+      queue-capacity: 50
+      thread-name-prefix: test-search-log-
+
+api:
+  omdb:
+    key: test-omdb-key
+    url: http://www.omdbapi.com
+    max-detail-requests: 10
+  tmdb:
+    bearer-token: test-tmdb-bearer-token
+    url: https://api.themoviedb.org/3
+    include-adult: false
+    max-detail-requests: 10
