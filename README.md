@@ -107,6 +107,40 @@ MySQL and Redis connection details come from `SPRING_DATASOURCE_URL` / `SPRING_D
 
 ---
 
+## Database migrations (Flyway)
+
+Schema is owned by Flyway, not Hibernate. Migrations live in `src/main/resources/db/migration/` and follow the `V{version}__{description}.sql` convention:
+
+```
+src/main/resources/db/migration/
+└── V1__create_search_log.sql
+```
+
+On app start, Flyway runs any pending migration in version order before the Spring context is fully up. `spring.jpa.hibernate.ddl-auto=validate` then asserts the resulting schema matches the JPA entities — so a drift between `SearchLog.java` and the DDL fails fast on startup rather than at runtime.
+
+### Adding a new migration
+
+1. Create a new file: `V2__add_my_column.sql` (versions must be monotonically increasing, and past migrations are **never edited** — Flyway checksums them)
+2. Update the corresponding JPA entity if needed
+3. Restart the app — Flyway picks up and applies the new file automatically
+
+### Inspecting migration state
+
+```bash
+docker exec kov-mysql-1 mysql -u movieinfo -pmovieinfo movieinfo \
+  -e 'SELECT version, description, success, installed_on FROM flyway_schema_history'
+```
+
+### Charset / collation
+
+Tables are explicitly created with `DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`, MySQL server runs with `--character-set-server=utf8mb4`, and the JDBC URL carries `useUnicode=true&characterEncoding=UTF-8`. Hungarian, CJK, emoji all survive the round-trip verbatim — verified by `MovieApiFullStackIntegrationTest#unicodeTitle_isPersistedAndReturnedVerbatim`.
+
+### Test profile
+
+Flyway is **disabled** in the unit / slice test profile (`spring.flyway.enabled=false`); H2 generates the schema on the fly from JPA entities via `ddl-auto=create-drop`. The full-stack Testcontainers suite (`MovieApiFullStackIntegrationTest`) is the canary that runs the real Flyway migration against a real MySQL, catching entity-vs-DDL drift.
+
+---
+
 ## Testing
 
 ```bash
